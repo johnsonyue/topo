@@ -11,6 +11,7 @@ import networkx as nx
 from networkx import graphviz_layout
 
 
+#class node represents a node in topo graph.
 class node:
 	def __init__(self,ip):
 		self.addr = ip;
@@ -18,9 +19,12 @@ class node:
 		self.child_rtt = [];
 		
 		self.indegree = 0;
+
+#topo graph is a directed acyclic graph.
 class dag:
 	def __init__(self, root):
 		self.node = [];
+		#dict for quick node lookup.
 		self.dict = {};
 		
 		#add root.
@@ -41,6 +45,8 @@ class dag:
 			self.parse_hop(hops[i]);
 		return True;
 
+	#see if a node[cind] belongs to node[pind].
+	#one pass scan.
 	def is_child(self, pind, cind):
 		for c in self.node[pind].child:
 			if c == cind:
@@ -48,6 +54,7 @@ class dag:
 	
 		return False;
 
+	#each hop contains a tuple of ip,rtt,nTries.
 	def parse_hop(self, hop):
 		if hop == "q":
 			self.prev_index = -1;
@@ -58,6 +65,11 @@ class dag:
 			addr = (tuple.split(','))[0];
 			rtt = (tuple.split(','))[1];
 
+			#build graph from a trace.
+			#self.prev_index represents the index of the predecessor.
+			#self.num_nodes-1 is the index of current node being appended.
+
+			#for unseen node: append node, add edge, walk on.
 			if not self.dict.has_key(addr):
 				self.node.append(node(addr));
 				self.dict[addr] = self.num_nodes;
@@ -70,6 +82,7 @@ class dag:
 
 				self.prev_index = self.num_nodes;
 				self.num_nodes = self.num_nodes + 1;
+			#for existing node: check for different predecessor, the walk on.
 			else:
 				child_index = self.dict[addr];
 				if self.prev_index != -1 and not self.is_child(self.prev_index, child_index):
@@ -98,9 +111,11 @@ class dag:
 			for j in range(len(self.node[i].child)):
 				graph.add_edge(i,self.node[i].child[j],weight=self.node[i].child_rtt[j]);
 						
+		#get the largest connected component.
 		graph0 = sorted(nx.connected_component_subgraphs(graph), key = len, reverse=True)[0];
 		
 
+		#use graphviz layout to get a hierachical view of the topo.
 		plt.figure(figsize=(50,50));
 		layout = nx.graphviz_layout(graph0,prog="twopi",root=0);
 
@@ -116,13 +131,16 @@ class dag:
 		if max_rtt > 100:
 			max_rtt = 100;
 		rtt_norm = clrs.Normalize(vmin=min_rtt, vmax=max_rtt);
+		#use gist_rainbow color map to convert gray scale value to colored rgb.
 		scalar_map = cm.ScalarMappable(norm=rtt_norm,cmap=plt.cm.gist_rainbow); 
 
+		#get colors from the scalar map.
 		colors = []; 
 		for a,b in graph0.edges():
 			rgb = scalar_map.to_rgba(graph0[a][b]['weight']);
 			colors.append(rgb);
 		
+		#get lablels for high degree nodes.
 		labels = {};
 		labels[0] = "root:",self.node[0].addr;
 		
@@ -131,6 +149,7 @@ class dag:
 			if  degree > 20:
 				labels[n] = self.node[n].addr+" ("+str(degree)+")";
 
+		#draw graph.
 		nx.draw(graph0,layout,with_labels=False,alpha=0.5,node_size=15,edge_color=colors);
 		nx.draw_networkx_labels(graph0,layout,labels,font_size=10);
 		xmax = 1.02*max(xx for xx,yy in layout.values());
