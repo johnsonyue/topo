@@ -4,6 +4,9 @@ import re
 import matplotlib
 matplotlib.use("Agg");
 import matplotlib.pyplot as plt
+import matplotlib.colors as clrs
+import matplotlib.cm as cm
+
 import networkx as nx
 from networkx import graphviz_layout
 
@@ -12,6 +15,7 @@ class node:
 	def __init__(self,ip):
 		self.addr = ip;
 		self.child = [];
+		self.child_rtt = [];
 class dag:
 	def __init__(self, root):
 		self.node = [];
@@ -50,11 +54,15 @@ class dag:
 		list = hop.split(';');
 		for tuple in list:
 			addr = (tuple.split(','))[0];
+			rtt = (tuple.split(','))[1];
+
 			if not self.dict.has_key(addr):
 				self.node.append(node(addr));
 				self.dict[addr] = self.num_nodes;
 				if self.prev_index != -1:
 					self.node[self.prev_index].child.append(self.num_nodes);
+					self.node[self.prev_index].child_rtt.append(rtt);
+
 					self.num_edges = self.num_edges + 1;
 
 				self.prev_index = self.num_nodes;
@@ -63,6 +71,8 @@ class dag:
 				child_index = self.dict[addr];
 				if self.prev_index != -1 and not self.is_child(self.prev_index, child_index):
 					self.node[self.prev_index].child.append(child_index);
+					self.node[self.prev_index].child_rtt.append(rtt);
+
 					self.num_edges = self.num_edges + 1;
 				self.prev_index = child_index;
 	def build(self, file):
@@ -81,15 +91,35 @@ class dag:
 
 		for i in range(len(self.node)-1,-1,-1):
 			graph.add_node(i);
-			for c in self.node[i].child:
-				graph.add_edge(i,c);
-		
+			for j in range(len(self.node[i].child)):
+				graph.add_edge(i,self.node[i].child[j],weight=self.node[i].child_rtt[j]);
+						
 		graph0 = sorted(nx.connected_component_subgraphs(graph), key = len, reverse=True)[0];		
 		
 
-		plt.figure(figsize=(8,8));
+		plt.figure(figsize=(70,70));
 		layout = nx.graphviz_layout(graph0,prog="twopi",root=0);
-		nx.draw(graph0,layout,with_labels = False,alpha=0.5,node_size=15);
+
+		#get scalar map for weight.
+		max_rtt = 0;
+		min_rtt = 10000;
+		for a,b in graph0.edges():
+			rtt = float(graph0[a][b]['weight']);
+			if max_rtt < rtt:
+				max_rtt = rtt;
+			if min_rtt > rtt:
+				min_rtt = rtt;
+		if max_rtt > 100:
+			max_rtt = 100;
+		rtt_norm = clrs.Normalize(vmin=min_rtt, vmax=max_rtt);
+		scalar_map = cm.ScalarMappable(norm=rtt_norm,cmap=plt.cm.gist_rainbow); 
+
+		colors = []; 
+		for a,b in graph0.edges():
+			rgb = scalar_map.to_rgba(graph0[a][b]['weight']);
+			colors.append(rgb);
+		
+		nx.draw(graph0,layout,with_labels = False,alpha=0.5,node_size=15,edge_color=colors);
 		xmax = 1.02*max(xx for xx,yy in layout.values());
 		ymax = 1.02*max(yy for xx,yy in layout.values());
 		plt.savefig("save.png");
