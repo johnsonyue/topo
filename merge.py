@@ -16,6 +16,8 @@ class node:
 		self.addr = ip;
 		self.child = [];
 		self.child_rtt = [];
+		
+		self.indegree = 0;
 class dag:
 	def __init__(self, root):
 		self.node = [];
@@ -62,6 +64,7 @@ class dag:
 				if self.prev_index != -1:
 					self.node[self.prev_index].child.append(self.num_nodes);
 					self.node[self.prev_index].child_rtt.append(rtt);
+					self.node[self.num_nodes-1].indgree = self.node[self.num_nodes-1].indegree + 1;
 
 					self.num_edges = self.num_edges + 1;
 
@@ -72,6 +75,7 @@ class dag:
 				if self.prev_index != -1 and not self.is_child(self.prev_index, child_index):
 					self.node[self.prev_index].child.append(child_index);
 					self.node[self.prev_index].child_rtt.append(rtt);
+					self.node[self.num_nodes-1].indgree = self.node[self.num_nodes-1].indegree + 1;
 
 					self.num_edges = self.num_edges + 1;
 				self.prev_index = child_index;
@@ -94,10 +98,10 @@ class dag:
 			for j in range(len(self.node[i].child)):
 				graph.add_edge(i,self.node[i].child[j],weight=self.node[i].child_rtt[j]);
 						
-		graph0 = sorted(nx.connected_component_subgraphs(graph), key = len, reverse=True)[0];		
+		graph0 = sorted(nx.connected_component_subgraphs(graph), key = len, reverse=True)[0];
 		
 
-		plt.figure(figsize=(70,70));
+		plt.figure(figsize=(50,50));
 		layout = nx.graphviz_layout(graph0,prog="twopi",root=0);
 
 		#get scalar map for weight.
@@ -119,10 +123,19 @@ class dag:
 			rgb = scalar_map.to_rgba(graph0[a][b]['weight']);
 			colors.append(rgb);
 		
-		nx.draw(graph0,layout,with_labels = False,alpha=0.5,node_size=15,edge_color=colors);
+		labels = {};
+		labels[0] = "root:",self.node[0].addr;
+		
+		for n in graph0.nodes():
+			degree = self.node[n].indegree+len(self.node[n].child);
+			if  degree > 20:
+				labels[n] = self.node[n].addr+" ("+str(degree)+")";
+
+		nx.draw(graph0,layout,with_labels=False,alpha=0.5,node_size=15,edge_color=colors);
+		nx.draw_networkx_labels(graph0,layout,labels,font_size=10);
 		xmax = 1.02*max(xx for xx,yy in layout.values());
 		ymax = 1.02*max(yy for xx,yy in layout.values());
-		plt.savefig("save.png");
+		plt.savefig("save.png",dpi=300);
 
 		
 def get_src(file_name):
