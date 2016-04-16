@@ -29,6 +29,10 @@ class dag:
 		#dict for quick node lookup.
 		self.dict = {};
 		
+		#stats for traces.
+		self.num_traces = 0;
+		self.path_len_dist = [0 for i in range(1,100)];
+		
 		#add root.
 		self.num_edges = 0;
 		self.num_nodes = 1;
@@ -43,6 +47,10 @@ class dag:
 			return False;
 
 		hops = trace.strip().split('\t');
+		
+		#record path len to get the dist.
+		self.path_len_dist[len(hops)] = self.path_len_dist[len(hops)] + 1;
+		
 		for i in range(13,len(hops)):
 			self.parse_hop(hops[i]);
 		return True;
@@ -99,8 +107,10 @@ class dag:
 		for line in f.readlines():
 			self.prev_index = 0;
 			self.parse_trace(line);
+			self.num_traces = self.num_traces + 1;
 		f.close();
 	def disp_stats(self):
+		print "total traces processed:",self.num_traces;
 		print "total nodes:",len(self.node);
 		print "total edges:",self.num_edges;
 
@@ -224,6 +234,18 @@ class dag:
 		plt.figure(figsize=(8,8));
 		plt.plot( rtt_dist_x, np.cumsum(rtt_dist_y) );
 		plt.savefig(graph_name+"_rtt_ccdf.png");
+
+		#draw path len distribution.
+		plt.figure(figsize=(8,8));
+		plt.plot([ i for i in range( 1,len(self.path_len_dist)+1 ) ], self.path_len_dist);
+		plt.savefig(graph_name+"_path_len_dist.png");
+		
+		#draw path len ccdf.
+		plt.figure(figsize=(8,8));
+		plt.plot([ i for i in range( 1,len(self.path_len_dist)+1 ) ], np.cumsum(self.path_len_dist));
+		plt.savefig(graph_name+"_path_len_ccdf.png");
+
+
 
 		
 def get_src(file_name):
