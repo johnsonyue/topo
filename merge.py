@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as clrs
 import matplotlib.cm as cm
 
+import numpy as np
+
 import networkx as nx
 from networkx import graphviz_layout
 
@@ -103,7 +105,7 @@ class dag:
 		print "total edges:",self.num_edges;
 
 	
-	def draw(self):
+	def draw_topo(self, graph_name):
 		graph = nx.Graph();
 
 		for i in range(len(self.node)-1,-1,-1):
@@ -113,21 +115,43 @@ class dag:
 						
 		#get the largest connected component.
 		graph0 = sorted(nx.connected_component_subgraphs(graph), key = len, reverse=True)[0];
+
 		
 
-		#use graphviz layout to get a hierachical view of the topo.
-		plt.figure(figsize=(50,50));
-		layout = nx.graphviz_layout(graph0,prog="twopi",root=0);
-
+		
+		#get rtt dist.
 		#get scalar map for weight.
+		rtt_list = [];
+		rtt_dist_x = [];
+		rtt_dist_y = [];
+		
+
 		max_rtt = 0;
 		min_rtt = 10000;
 		for a,b in graph0.edges():
 			rtt = float(graph0[a][b]['weight']);
+			rtt_list.append(int(rtt));
 			if max_rtt < rtt:
 				max_rtt = rtt;
 			if min_rtt > rtt:
 				min_rtt = rtt;
+		
+		rtt_list.sort();
+		prev_rtt = rtt_list[0];
+		rtt_dist_x.append(prev_rtt);
+		rtt_dist_y.append(1);
+		num_rtt = 0;
+		
+		for i in range( 1,len(rtt_list) ):
+			if rtt_list[i] == prev_rtt:
+				rtt_dist_y[num_rtt] = rtt_dist_y[num_rtt] + 1;
+			else:
+				prev_rtt = rtt_list[i];
+				rtt_dist_x.append(rtt_list[i]);
+				rtt_dist_y.append(1);
+				num_rtt = num_rtt + 1;
+
+
 		if max_rtt > 100:
 			max_rtt = 100;
 		rtt_norm = clrs.Normalize(vmin=min_rtt, vmax=max_rtt);
@@ -139,22 +163,67 @@ class dag:
 		for a,b in graph0.edges():
 			rgb = scalar_map.to_rgba(graph0[a][b]['weight']);
 			colors.append(rgb);
+
 		
+		
+		#get degree dist.
 		#get lablels for high degree nodes.
 		labels = {};
 		labels[0] = "root:",self.node[0].addr;
 		
+		degree_list = [];
+		deg_dist_x = [];
+		deg_dist_y = [];
+		
 		for n in graph0.nodes():
 			degree = self.node[n].indegree+len(self.node[n].child);
+			degree_list.append(degree);
 			if  degree > 20:
 				labels[n] = self.node[n].addr+" ("+str(degree)+")";
+		
+		degree_list.sort();
+		prev_deg = degree_list[0];
+		deg_dist_x.append(prev_deg);
+		deg_dist_y.append(1);
+		num_deg = 0;
+		
+		for i in range( 1,len(degree_list) ):
+			if degree_list[i] == prev_deg:
+				deg_dist_y[num_deg] = deg_dist_y[num_deg] + 1;
+			else:
+				prev_deg = degree_list[i];
+				deg_dist_x.append(degree_list[i]);
+				deg_dist_y.append(1);
+				num_deg = num_deg + 1;
+			
+		#use graphviz layout to get a hierachical view of the topo.
+		plt.figure(figsize=(50,50));
+		layout = nx.graphviz_layout(graph0,prog="twopi",root=0);
 
-		#draw graph.
+		#draw topo graph.
 		nx.draw(graph0,layout,with_labels=False,alpha=0.5,node_size=15,edge_color=colors);
 		nx.draw_networkx_labels(graph0,layout,labels,font_size=10);
-		xmax = 1.02*max(xx for xx,yy in layout.values());
-		ymax = 1.02*max(yy for xx,yy in layout.values());
-		plt.savefig("save.png",dpi=300);
+		plt.savefig(graph_name+"_topo.png",dpi=300);
+		
+		#draw deg distribution.
+		plt.figure(figsize=(8,8));
+		plt.plot(deg_dist_x, deg_dist_y);
+		plt.savefig(graph_name+"_deg_dist.png");
+		
+		#draw deg ccdf.
+		plt.figure(figsize=(8,8));
+		plt.plot( deg_dist_x, np.cumsum(deg_dist_y) );
+		plt.savefig(graph_name+"_deg_ccdf.png");
+
+		#draw deg distribution.
+		plt.figure(figsize=(8,8));
+		plt.plot(rtt_dist_x, rtt_dist_y);
+		plt.savefig(graph_name+"_rtt_dist.png");
+		
+		#draw deg ccdf.
+		plt.figure(figsize=(8,8));
+		plt.plot( rtt_dist_x, np.cumsum(rtt_dist_y) );
+		plt.savefig(graph_name+"_rtt_ccdf.png");
 
 		
 def get_src(file_name):
@@ -168,14 +237,14 @@ def get_src(file_name):
 		return src;
 
 def main(argv):
-	if len(argv) != 2:
-		print "usage:python merge.py <dump_file_name>";
+	if len(argv) != 3:
+		print "usage:python merge.py <dump_file_name> <output_prefix>";
 		return;
 
 	topo = dag(get_src(argv[1]));
 	topo.build(argv[1]);
 	topo.disp_stats();
-	topo.draw();
+	topo.draw_topo(argv[2]);
 
 if __name__ == "__main__":
 	main(sys.argv);
